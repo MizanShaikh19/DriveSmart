@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { motion, AnimatePresence } from "framer-motion"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,7 +12,14 @@ import {
     Car,
     Star,
     Activity,
-    Clock
+    Clock,
+    RefreshCw,
+    ShieldCheck,
+    UserCircle,
+    Mail,
+    IdCard,
+    ChevronRight,
+    Zap
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import toast from "react-hot-toast"
@@ -29,28 +37,30 @@ interface Driver {
     } | null
 }
 
+const STATUS_CONFIG: Record<string, { color: string, label: string, bg: string }> = {
+    approved: { color: "text-emerald-500", label: "Active Duty", bg: "bg-emerald-500" },
+    pending: { color: "text-amber-500", label: "Pending Audit", bg: "bg-amber-500" },
+    rejected: { color: "text-red-500", label: "Access Denied", bg: "bg-red-500" },
+    suspended: { color: "text-slate-500", label: "Sync Suspended", bg: "bg-slate-500" }
+}
+
 export default function Drivers() {
-    const [drivers, setDrivers] = useState<Driver[]>([])
-    const [loading, setLoading] = useState(true)
     const [filter, setFilter] = useState<string>("all")
     const [search, setSearch] = useState("")
-    const [stats, setStats] = useState({ total: 0, pending: 0, online: 0, avgRating: 0 })
 
-    useEffect(() => {
-        fetchDrivers()
-    }, [])
+    const { data, isLoading, refetch } = useQuery({
+        queryKey: ['drivers'],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("drivers")
+                .select("*")
+                .order("created_at", { ascending: false })
 
-    const fetchDrivers = async () => {
-        setLoading(true)
-        const { data, error } = await supabase
-            .from("drivers")
-            .select("*")
-            .order("created_at", { ascending: false })
+            if (error) {
+                toast.error("Telemetry link failure.")
+                throw error
+            }
 
-        if (error) {
-            toast.error("Failed to fetch drivers")
-            setDrivers([])
-        } else {
             const driversWithProfiles = await Promise.all(
                 (data || []).map(async (driver) => {
                     const { data: profile } = await supabase
@@ -62,9 +72,6 @@ export default function Drivers() {
                 })
             )
 
-            setDrivers(driversWithProfiles)
-
-            // Calculate Stats
             const total = driversWithProfiles.length
             const pending = driversWithProfiles.filter(d => d.status === 'pending').length
             const online = driversWithProfiles.filter(d => d.is_online).length
@@ -72,10 +79,18 @@ export default function Drivers() {
                 ? driversWithProfiles.reduce((acc, curr) => acc + (curr.rating || 0), 0) / total
                 : 0
 
-            setStats({ total, pending, online, avgRating })
+            return {
+                drivers: driversWithProfiles,
+                stats: { total, pending, online, avgRating }
+            }
+        },
+        initialData: {
+            drivers: [],
+            stats: { total: 0, pending: 0, online: 0, avgRating: 0 }
         }
-        setLoading(false)
-    }
+    })
+
+    const { drivers, stats } = data
 
     const updateDriverStatus = async (driverId: string, status: string, name: string) => {
         const { error } = await supabase
@@ -84,14 +99,14 @@ export default function Drivers() {
             .eq("id", driverId)
 
         if (error) {
-            toast.error("Failed to update status")
+            toast.error("Authorization protocol failed.")
         } else {
-            toast.success(`Driver ${name} ${status}`)
-            fetchDrivers()
+            toast.success(`Identity ${name} marked as ${status}`)
+            refetch()
         }
     }
 
-    const filteredDrivers = drivers.filter(driver => {
+    const filteredDrivers = drivers.filter((driver: Driver) => {
         const matchesStatus = filter === "all" || driver.status === filter
         const matchesSearch =
             driver.profiles?.full_name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -103,215 +118,207 @@ export default function Drivers() {
 
     return (
         <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="space-y-10 p-2"
+        >
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div>
+                    <h1 className="text-xl font-black text-blue-900 tracking-[0.2em] uppercase flex items-center gap-3">
+                        <div className="w-10 h-10 skeuo-button bg-blue-600 flex items-center justify-center rounded-xl shadow-skeuo-sm">
+                            <IdCard size={20} className="text-white fill-white/10" />
+                        </div>
+                        Fleet Registry
+                    </h1>
+                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mt-2 ml-13">Identity verification and telemetry monitoring</p>
+                </div>
+                <div className="flex gap-3">
+                    <Button
+                        onClick={() => refetch()}
+                        variant="skeuo"
+                        size="icon"
+                        className="w-12 h-12 rounded-2xl"
+                    >
+                        <RefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
+                    </Button>
+                </div>
+            </div>
+
+            {/* Stats Deck */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <StatsCard icon={Car} label="Fleet Size" value={stats.total.toString()} color="blue" />
+                <StatsCard icon={Clock} label="Pending Audit" value={stats.pending.toString()} color="amber" />
+                <StatsCard icon={Activity} label="Active Nodes" value={stats.online.toString()} color="emerald" />
+                <StatsCard icon={Star} label="Fleet Quality" value={stats.avgRating.toFixed(1)} color="blue" suffix="★" />
+            </div>
+
+            <div className="space-y-6">
+                <div className="flex flex-col md:flex-row justify-between gap-6 items-center">
+                    <div className="skeuo-inset p-1.5 bg-slate-200/30 rounded-2xl border-white/20 flex gap-1 overflow-x-auto scrollbar-hide w-full md:w-auto">
+                        {["all", "pending", "approved", "rejected"].map((status) => (
+                            <button
+                                key={status}
+                                onClick={() => setFilter(status)}
+                                className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all whitespace-nowrap
+                                    ${filter === status
+                                        ? 'skeuo-button bg-blue-600 text-white shadow-skeuo-sm scale-105'
+                                        : 'text-blue-900/40 hover:text-blue-900/60'
+                                    }
+                                `}
+                            >
+                                {status === 'approved' ? 'Active' : status}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="relative w-full md:w-80 h-12">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-400">
+                            <Search size={16} />
+                        </div>
+                        <Input
+                            placeholder="Search nodes by identity..."
+                            className="w-full h-full pl-12 pr-4 skeuo-inset bg-slate-50/50 rounded-2xl border-white/10 text-[11px] font-bold text-blue-900 placeholder:text-slate-300 uppercase tracking-tight focus-visible:ring-0 focus-visible:border-white/40"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <AnimatePresence mode="popLayout">
+                        {isLoading ? (
+                            [...Array(6)].map((_, i) => (
+                                <div key={i} className="h-80 skeuo-card border-white/40 bg-white/20 skeuo-logo-glow animate-pulse rounded-[32px]" />
+                            ))
+                        ) : filteredDrivers.length === 0 ? (
+                            <div className="col-span-full py-24 skeuo-inset mx-4 rounded-[40px] border-white/10 text-center">
+                                <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">No registry records found</p>
+                            </div>
+                        ) : (
+                            filteredDrivers.map((driver: Driver) => (
+                                <DriverCard
+                                    key={driver.id}
+                                    driver={driver}
+                                    onUpdate={updateDriverStatus}
+                                />
+                            ))
+                        )}
+                    </AnimatePresence>
+                </div>
+            </div>
+        </motion.div>
+    )
+}
+
+function DriverCard({ driver, onUpdate }: { driver: Driver, onUpdate: any }) {
+    const status = STATUS_CONFIG[driver.status] || STATUS_CONFIG.suspended
+
+    return (
+        <motion.div
+            layout
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="space-y-8"
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
         >
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Driver Management</h1>
-                    <p className="text-slate-500 mt-1">Review applications and monitor fleet performance</p>
+            <Card className="skeuo-card border-white/80 overflow-hidden shadow-skeuo-md hover:bg-white/60 transition-all group p-6">
+                <div className="flex items-start justify-between mb-8">
+                    <div className="relative">
+                        <Avatar className="h-16 w-16 skeuo-card border-white shadow-skeuo-md scale-105">
+                            <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${driver.profiles?.full_name}`} />
+                            <AvatarFallback className="bg-blue-100 text-blue-700 font-black text-xl uppercase">{driver.profiles?.full_name?.[0]}</AvatarFallback>
+                        </Avatar>
+                        <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white shadow-skeuo-sm flex items-center justify-center ${driver.is_online ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                            {driver.is_online && <div className="w-1.5 h-1.5 bg-white rounded-full animate-ping" />}
+                        </div>
+                    </div>
+                    <div className="text-right">
+                        <div className={`skeuo-inset px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border-white/10 mb-2 ${status.color}`}>
+                            {status.label}
+                        </div>
+                        <div className="flex items-center justify-end gap-1.5 font-black text-base text-blue-900 tracking-tighter">
+                            <Star size={14} className="text-amber-400 fill-amber-400" />
+                            {driver.rating.toFixed(1)}
+                        </div>
+                    </div>
                 </div>
-                <Button onClick={fetchDrivers} variant="outline" className="gap-2">
-                    Refresh Data
-                </Button>
-            </div>
 
-            {/* Driver Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatsCard icon={Car} label="Total Drivers" value={stats.total.toString()} color="blue" />
-                <StatsCard icon={Clock} label="Pending Approval" value={stats.pending.toString()} color="yellow" />
-                <StatsCard icon={Activity} label="Online Now" value={stats.online.toString()} color="green" />
-                <StatsCard icon={Star} label="Avg Rating" value={stats.avgRating.toFixed(1)} color="purple" suffix="⭐" />
-            </div>
+                <div className="space-y-5 mb-8">
+                    <div>
+                        <h3 className="text-sm font-black text-blue-900 uppercase tracking-tighter truncate leading-none">
+                            {driver.profiles?.full_name || "Unverified Node"}
+                        </h3>
+                        <p className="text-[10px] font-bold text-slate-400 mt-2 flex items-center gap-2">
+                            <Mail size={10} /> {driver.profiles?.email}
+                        </p>
+                    </div>
 
-            <Card className="border-slate-100 shadow-lg overflow-hidden">
-                <CardHeader className="border-b border-slate-50 bg-slate-50/50 p-6">
-                    <div className="flex flex-col md:flex-row justify-between gap-4 items-center">
-                        <div className="flex gap-2">
-                            {["all", "pending", "approved", "rejected"].map((status) => (
-                                <Button
-                                    key={status}
-                                    variant={filter === status ? "default" : "outline"}
-                                    onClick={() => setFilter(status)}
-                                    size="sm"
-                                    className={`capitalize ${filter === status ? 'bg-slate-900' : 'bg-white'}`}
-                                >
-                                    {status}
-                                </Button>
-                            ))}
+                    <div className="skeuo-inset p-3 bg-slate-50/50 rounded-xl border-white/10 flex justify-between items-center">
+                        <div className="space-y-1">
+                            <p className="text-[8px] font-black text-blue-400 uppercase tracking-widest">Protocol Stats</p>
+                            <p className="text-[11px] font-black text-blue-900 uppercase tracking-tight">{driver.total_rides} Verified Transits</p>
                         </div>
-
-                        <div className="relative w-full md:w-64">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                            <Input
-                                placeholder="Search drivers..."
-                                className="pl-10 bg-white"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                            />
+                        <div className="w-8 h-8 skeuo-button bg-white flex items-center justify-center rounded-lg">
+                            <ChevronRight size={14} className="text-blue-300" />
                         </div>
                     </div>
-                </CardHeader>
 
-                <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-slate-50 text-slate-500 font-medium">
-                                <tr>
-                                    <th className="py-4 px-6">Driver</th>
-                                    <th className="py-4 px-6">License / Status</th>
-                                    <th className="py-4 px-6">Performance</th>
-                                    <th className="py-4 px-6">Activity</th>
-                                    <th className="py-4 px-6 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 bg-white">
-                                <AnimatePresence mode="wait">
-                                    {loading ? (
-                                        [...Array(5)].map((_, i) => (
-                                            <tr key={i} className="animate-pulse">
-                                                <td colSpan={5} className="py-6 px-6">
-                                                    <div className="h-2 bg-slate-100 rounded w-full"></div>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : filteredDrivers.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={5} className="py-12 text-center text-slate-500">
-                                                No drivers found.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        filteredDrivers.map((driver) => (
-                                            <motion.tr
-                                                key={driver.id}
-                                                initial={{ opacity: 0 }}
-                                                animate={{ opacity: 1 }}
-                                                exit={{ opacity: 0 }}
-                                                className="hover:bg-slate-50/50 transition-colors"
-                                            >
-                                                <td className="py-4 px-6">
-                                                    <div className="flex items-center gap-3">
-                                                        <Avatar className="h-10 w-10 border-2 border-white shadow-sm ring-1 ring-slate-100">
-                                                            <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${driver.profiles?.full_name}`} />
-                                                            <AvatarFallback>{driver.profiles?.email[0].toUpperCase()}</AvatarFallback>
-                                                        </Avatar>
-                                                        <div>
-                                                            <p className="font-semibold text-slate-900">{driver.profiles?.full_name || "Unknown"}</p>
-                                                            <p className="text-xs text-slate-500">{driver.profiles?.email}</p>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="py-4 px-6">
-                                                    <div className="flex flex-col gap-1">
-                                                        <span className="font-mono text-xs text-slate-500">{driver.license_number || "No License"}</span>
-                                                        <StatusBadge status={driver.status} />
-                                                    </div>
-                                                </td>
-                                                <td className="py-4 px-6">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="flex flex-col">
-                                                            <span className="text-xs text-slate-400">Rating</span>
-                                                            <div className="flex items-center font-medium text-slate-700">
-                                                                <Star size={14} className="text-yellow-400 fill-yellow-400 mr-1" />
-                                                                {driver.rating.toFixed(1)}
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex flex-col">
-                                                            <span className="text-xs text-slate-400">Rides</span>
-                                                            <span className="font-medium text-slate-700">{driver.total_rides}</span>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="py-4 px-6">
-                                                    {driver.is_online ? (
-                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100">
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-green-600 animate-pulse" />
-                                                            Online
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-50 text-slate-500 border border-slate-200">
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                                                            Offline
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="py-4 px-6">
-                                                    <div className="flex justify-end gap-2">
-                                                        {driver.status === "pending" ? (
-                                                            <>
-                                                                <Button
-                                                                    size="sm"
-                                                                    className="bg-green-600 hover:bg-green-700 h-8"
-                                                                    onClick={() => updateDriverStatus(driver.id, "approved", driver.profiles?.full_name || "")}
-                                                                >
-                                                                    <CheckCircle size={14} className="mr-1" /> Approve
-                                                                </Button>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="destructive"
-                                                                    className="h-8"
-                                                                    onClick={() => updateDriverStatus(driver.id, "rejected", driver.profiles?.full_name || "")}
-                                                                >
-                                                                    <XCircle size={14} className="mr-1" /> Reject
-                                                                </Button>
-                                                            </>
-                                                        ) : (
-                                                            <Button size="sm" variant="ghost" className="text-slate-400">
-                                                                View Details
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </motion.tr>
-                                        ))
-                                    )}
-                                </AnimatePresence>
-                            </tbody>
-                        </table>
+                    <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 skeuo-inset flex items-center justify-center rounded text-blue-500">
+                            <Zap size={10} />
+                        </div>
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">License: {driver.license_number || "PENDING"}</span>
                     </div>
-                </CardContent>
+                </div>
+
+                <div className="flex gap-4">
+                    {driver.status === "pending" ? (
+                        <>
+                            <Button
+                                className="flex-1 h-12 skeuo-button bg-emerald-600 text-[9px] font-black uppercase tracking-[0.2em] text-white shadow-skeuo-sm hover:scale-[1.02]"
+                                onClick={() => onUpdate(driver.id, "approved", driver.profiles?.full_name || "")}
+                            >
+                                Authorize
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                className="flex-1 h-12 text-[9px] font-black uppercase tracking-[0.2em] text-red-500/60 hover:text-red-500 hover:bg-transparent"
+                                onClick={() => onUpdate(driver.id, "rejected", driver.profiles?.full_name || "")}
+                            >
+                                De-Auth
+                            </Button>
+                        </>
+                    ) : (
+                        <Button
+                            variant="skeuo"
+                            className="w-full h-12 text-[9px] font-black uppercase tracking-[0.2em]"
+                        >
+                            Open Protocol Hub
+                        </Button>
+                    )}
+                </div>
             </Card>
         </motion.div>
     )
 }
 
-function StatusBadge({ status }: { status: string }) {
-    const styles = {
-        approved: "bg-green-50 text-green-700 border-green-200",
-        pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
-        rejected: "bg-red-50 text-red-700 border-red-200",
-        suspended: "bg-slate-100 text-slate-700 border-slate-200"
-    }
-
-    return (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border capitalize w-fit ${styles[status as keyof typeof styles] || styles.suspended}`}>
-            {status}
-        </span>
-    )
-}
-
 function StatsCard({ icon: Icon, label, value, color, suffix }: any) {
-    const colors = {
-        blue: "text-blue-600 bg-blue-50",
-        yellow: "text-yellow-600 bg-yellow-50",
-        green: "text-green-600 bg-green-50",
-        purple: "text-purple-600 bg-purple-50"
+    const accents = {
+        blue: "text-blue-600 bg-blue-500/10 border-blue-100",
+        amber: "text-amber-500 bg-amber-500/10 border-amber-100",
+        emerald: "text-emerald-500 bg-emerald-500/10 border-emerald-100",
     }
+    const colorKey = color as keyof typeof accents
 
     return (
-        <Card className="border-slate-100 shadow-sm">
-            <CardContent className="p-6 flex items-center gap-4">
-                <div className={`p-3 rounded-xl ${colors[color as keyof typeof colors]}`}>
-                    <Icon size={24} />
-                </div>
-                <div>
-                    <p className="text-sm text-slate-500 font-medium">{label}</p>
-                    <p className="text-2xl font-bold text-slate-900">{value}{suffix}</p>
-                </div>
-            </CardContent>
+        <Card className="skeuo-card border-white/60 p-6 flex items-center gap-5 group">
+            <div className={`w-14 h-14 skeuo-button flex items-center justify-center rounded-2xl shadow-skeuo-sm border-white/40 ${accents[colorKey]}`}>
+                <Icon size={24} className="drop-shadow-sm" />
+            </div>
+            <div>
+                <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">{label}</p>
+                <p className="text-2xl font-black text-blue-900 tracking-tighter">{value}{suffix}</p>
+            </div>
         </Card>
     )
 }

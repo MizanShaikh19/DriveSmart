@@ -68,6 +68,18 @@ export default {
                 "accordion-down": "accordion-down 0.2s ease-out",
                 "accordion-up": "accordion-up 0.2s ease-out",
             },
+            boxShadow: {
+                'skeuo-sm': '2px 2px 5px rgba(0,0,0,0.15), -2px -2px 5px rgba(255,255,255,0.8)',
+                'skeuo-md': '4px 4px 10px rgba(0,0,0,0.1), -4px -4px 10px rgba(255,255,255,0.9)',
+                'skeuo-lg': '8px 8px 20px rgba(0,0,0,0.1), -8px -8px 20px rgba(255,255,255,1)',
+                'skeuo-inset': 'inset 2px 2px 5px rgba(0,0,0,0.1), inset -2px -2px 5px rgba(255,255,255,0.8)',
+                'skeuo-button': '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.4)',
+            },
+            backgroundImage: {
+                'skeuo-glossy': 'linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.1) 49%, rgba(0,0,0,0.05) 50%, rgba(0,0,0,0.1) 100%)',
+                'skeuo-blue-glossy': 'linear-gradient(180deg, #93C5FD 0%, #3B82F6 49%, #2563EB 50%, #1E40AF 100%)',
+                'skeuo-white-glossy': 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 49%, #F1F5F9 50%, #E2E8F0 100%)',
+            }
         },
     },
     plugins: [require("tailwindcss-animate")],

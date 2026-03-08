@@ -1,6 +1,5 @@
 import { useState } from "react"
 import { Outlet, Link, useNavigate, useLocation } from "react-router-dom"
-import { Button } from "@/components/ui/button"
 import {
     LayoutDashboard,
     Users,
@@ -13,10 +12,13 @@ import {
     Search,
     Calendar,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    Play,
+    Terminal,
+    ShieldCheck
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export default function DashboardLayout() {
@@ -31,150 +33,184 @@ export default function DashboardLayout() {
 
     const navItems = [
         { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-        { path: "/dashboard/users", label: "Users", icon: Users },
-        { path: "/dashboard/drivers", label: "Drivers", icon: Car },
+        { path: "/dashboard/users", label: "Identity", icon: Users },
+        { path: "/dashboard/drivers", label: "Fleet", icon: Car },
         { path: "/dashboard/dispatch", label: "Dispatch", icon: MapPin },
         { path: "/dashboard/bookings", label: "Bookings", icon: Calendar },
-        { path: "/dashboard/payments", label: "Payments", icon: DollarSign },
-        { path: "/dashboard/settings", label: "Settings", icon: Settings },
+        { path: "/dashboard/payments", label: "Vault", icon: DollarSign },
+        { path: "/dashboard/simulation", label: "Signal Lab", icon: Play },
+        { path: "/dashboard/settings", label: "System", icon: Settings },
     ]
 
     return (
-        <div className="flex h-screen bg-slate-50 overflow-hidden">
-            {/* Sidebar */}
+        <div className="flex h-screen bg-[#F5F9FF] overflow-hidden relative">
+            <div className="absolute inset-0 skeuo-noise opacity-20 pointer-events-none"></div>
+
+            {/* Sidebar (Tactile Panel) */}
             <motion.aside
-                initial={{ width: 256 }}
-                animate={{ width: collapsed ? 80 : 256 }}
-                transition={{ duration: 0.3, type: "spring", stiffness: 100 }}
-                className="bg-white border-r border-slate-200 flex flex-col z-20 shadow-xl relative"
+                initial={{ width: 280 }}
+                animate={{ width: collapsed ? 100 : 280 }}
+                transition={{ duration: 0.4, type: "spring", damping: 20 }}
+                className="skeuo-sidebar flex flex-col z-30 relative border-white/80 bg-white/40 backdrop-blur-xl m-4 rounded-[40px] shadow-skeuo-md"
             >
-                {/* Toggle Button */}
+                {/* Toggle Button (Raised Circle) */}
                 <button
                     onClick={() => setCollapsed(!collapsed)}
-                    className="absolute -right-3 top-8 bg-white border border-slate-200 rounded-full p-1 shadow-md hover:bg-slate-50 text-slate-500 z-50"
+                    className="absolute -right-4 top-12 w-8 h-8 bg-blue-600 border border-white rounded-full flex items-center justify-center shadow-skeuo-sm hover:translate-x-1 text-white z-50 transition-all active:scale-90"
                 >
                     {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
                 </button>
 
-                {/* Logo */}
-                <div className="p-6 flex items-center h-20 border-b border-slate-100">
-                    <div className="flex items-center gap-3 overflow-hidden whitespace-nowrap">
-                        <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
-                            <Car className="text-white" size={20} />
+                {/* Logo Section */}
+                <div className="p-8 flex items-center h-24 border-b border-white/40">
+                    <div className="flex items-center gap-4 overflow-hidden whitespace-nowrap">
+                        <div className="w-12 h-12 skeuo-button bg-blue-600 flex items-center justify-center shadow-skeuo-sm flex-shrink-0 relative overflow-hidden group">
+                            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <ShieldCheck className="text-white drop-shadow-md relative z-10" size={24} />
                         </div>
-                        <motion.div
-                            animate={{ opacity: collapsed ? 0 : 1, width: collapsed ? 0 : "auto" }}
-                            className="flex flex-col"
-                        >
-                            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
-                                DriveSmart
-                            </h1>
-                            <p className="text-xs text-slate-500">Admin Portal</p>
-                        </motion.div>
+                        <AnimatePresence>
+                            {!collapsed && (
+                                <motion.div
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -10 }}
+                                    className="flex flex-col"
+                                >
+                                    <h1 className="text-xl font-black text-blue-900 tracking-tighter leading-none">
+                                        DriveSmart
+                                    </h1>
+                                    <p className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em] mt-1">Command Core</p>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
                 </div>
 
                 {/* Navigation */}
-                <nav className="flex-1 p-3 space-y-2 overflow-y-auto overflow-x-hidden">
+                <nav className="flex-1 p-6 space-y-4 overflow-y-auto no-scrollbar">
                     {navItems.map((item) => {
                         const isActive = location.pathname === item.path ||
                             (item.path !== "/dashboard" && location.pathname.startsWith(item.path))
 
                         return (
                             <Link key={item.path} to={item.path}>
-                                <div className="relative">
-                                    {isActive && (
-                                        <motion.div
-                                            layoutId="activeTab"
-                                            className="absolute inset-0 bg-blue-50 rounded-xl"
-                                            initial={false}
-                                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                                        />
+                                <div className={`
+                                    flex items-center gap-4 h-14 rounded-2xl transition-all duration-300 relative group
+                                    ${collapsed ? "justify-center px-0" : "px-5"}
+                                    ${isActive
+                                        ? "skeuo-button bg-blue-600 text-white shadow-skeuo-sm scale-[1.02]"
+                                        : "text-blue-900/40 hover:text-blue-900 hover:bg-white/40 shadow-none hover:shadow-skeuo-xs"
+                                    }
+                                `}>
+                                    <item.icon className={`${isActive ? "text-white" : "text-blue-300"} transition-colors`} size={20} />
+                                    {!collapsed && (
+                                        <span className="text-[10px] font-black uppercase tracking-[0.1em]">
+                                            {item.label}
+                                        </span>
                                     )}
-                                    <Button
-                                        variant="ghost"
-                                        className={`w-full justify-start h-12 relative z-10 ${isActive ? "text-blue-600 font-medium" : "text-slate-600 hover:text-slate-900"
-                                            } ${collapsed ? "px-0 justify-center" : "px-4"}`}
-                                    >
-                                        <item.icon className={`${collapsed ? "mr-0" : "mr-3"} ${isActive ? "text-blue-600" : "text-slate-500"}`} size={20} />
-                                        {!collapsed && (
-                                            <motion.span
-                                                initial={{ opacity: 0 }}
-                                                animate={{ opacity: 1 }}
-                                                exit={{ opacity: 0 }}
-                                            >
-                                                {item.label}
-                                            </motion.span>
-                                        )}
-                                    </Button>
+                                    {isActive && !collapsed && (
+                                        <div className="absolute right-4 w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                                    )}
                                 </div>
                             </Link>
                         )
                     })}
                 </nav>
 
-                {/* User Profile */}
-                <div className="p-4 border-t border-slate-100">
-                    <Button
-                        variant="ghost"
-                        className={`w-full ${collapsed ? "justify-center px-0" : "justify-start px-2"} text-red-500 hover:text-red-600 hover:bg-red-50`}
+                {/* Sidebar Footer */}
+                <div className="p-6 border-t border-white/40">
+                    <button
+                        className={`w-full flex items-center rounded-2xl transition-all duration-300 font-black text-[10px] uppercase tracking-widest
+                            ${collapsed ? "justify-center h-14" : "h-14 px-5"}
+                            bg-white/40 text-red-500 hover:bg-red-50 hover:text-red-700 shadow-skeuo-xs active:shadow-skeuo-inset
+                        `}
                         onClick={handleLogout}
                     >
-                        <LogOut className={`${collapsed ? "mr-0" : "mr-2"}`} size={20} />
-                        {!collapsed && <span>Logout</span>}
-                    </Button>
+                        <LogOut size={20} className={collapsed ? "" : "mr-4"} />
+                        {!collapsed && <span>System Exit</span>}
+                    </button>
+                    {!collapsed && (
+                        <div className="mt-6 flex justify-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-blue-100"></div>
+                            <div className="w-1.5 h-1.5 rounded-full bg-blue-100"></div>
+                            <div className="w-1.5 h-1.5 rounded-full bg-blue-100"></div>
+                        </div>
+                    )}
                 </div>
             </motion.aside>
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50/50">
-                {/* Header */}
-                <header className="h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 px-8 flex items-center justify-between z-10 sticky top-0">
-                    <div className="flex items-center gap-4">
-                        <h2 className="text-xl font-semibold text-slate-800 capitalize">
-                            {location.pathname.split("/").pop() || "Dashboard"}
-                        </h2>
+            <div className="flex-1 flex flex-col h-screen overflow-hidden">
+                {/* Tactical Header */}
+                <header className="h-24 mx-8 mt-4 flex items-center justify-between z-20 shrink-0 px-10 skeuo-card border-white shadow-skeuo-md bg-white/60 backdrop-blur-xl group">
+                    <div className="flex items-center gap-6">
+                        <div className="w-10 h-10 skeuo-inset bg-slate-50 border-white/10 flex items-center justify-center rounded-xl">
+                            <Terminal size={18} className="text-blue-500" />
+                        </div>
+                        <div>
+                            <h2 className="text-[10px] font-black text-blue-400/60 uppercase tracking-[0.3em] mb-1">
+                                Current Module
+                            </h2>
+                            <h2 className="text-lg font-black text-blue-900 uppercase tracking-tighter drop-shadow-sm flex items-center gap-3">
+                                {location.pathname.split("/").pop() || "Control Center"}
+                                <div className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+                            </h2>
+                        </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
-                        {/* Search */}
-                        <div className="hidden md:flex items-center bg-slate-100 rounded-full px-4 py-2 border border-slate-200 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all w-64">
-                            <Search size={18} className="text-slate-400 mr-2" />
+                    <div className="flex items-center gap-10">
+                        {/* Search Node */}
+                        <div className="hidden lg:flex items-center skeuo-inset px-6 h-14 w-80 border-white/10 bg-slate-50/50 group-focus-within:bg-white transition-all">
+                            <Search size={16} className="text-blue-300 mr-4" />
                             <input
                                 type="text"
-                                placeholder="Search..."
-                                className="bg-transparent border-none outline-none text-sm w-full text-slate-700"
+                                placeholder="QUERY NODE REGISTRY..."
+                                className="bg-transparent border-none outline-none text-[10px] font-black tracking-widest w-full text-blue-900 placeholder:text-slate-200 uppercase"
                             />
                         </div>
 
-                        {/* Notifications */}
-                        <button className="relative p-2 rounded-full hover:bg-slate-100 text-slate-600 transition-colors">
-                            <Bell size={20} />
-                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-                        </button>
-
-                        {/* User Avatar */}
-                        <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
-                            <div className="text-right hidden md:block">
-                                <p className="text-sm font-medium text-slate-900">Admin User</p>
-                                <p className="text-xs text-slate-500">Super Admin</p>
+                        <div className="flex items-center gap-6">
+                            {/* Time Sync */}
+                            <div className="hidden xl:flex flex-col items-end border-r border-white/40 pr-6">
+                                <p className="text-[14px] font-black text-blue-900 tracking-tighter">09:42:15</p>
+                                <p className="text-[8px] font-black text-blue-400 uppercase tracking-widest">Network Time Sync</p>
                             </div>
-                            <Avatar className="h-10 w-10 border-2 border-white shadow-sm ring-2 ring-slate-100 cursor-pointer">
-                                <AvatarImage src="https://github.com/shadcn.png" />
-                                <AvatarFallback>AD</AvatarFallback>
-                            </Avatar>
+
+                            {/* Alert Node */}
+                            <button className="relative h-12 w-12 flex items-center justify-center rounded-2xl skeuo-button border-white bg-white text-blue-400 shadow-skeuo-sm active:shadow-skeuo-inset transition-all group/bell">
+                                <Bell size={20} className="group-hover:rotate-12 transition-transform" />
+                                <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white shadow-[0_0_8px_rgba(239,68,68,0.5)] animate-pulse"></span>
+                            </button>
+
+                            {/* Identity Token */}
+                            <motion.div
+                                whileHover={{ scale: 1.02 }}
+                                className="flex items-center gap-5 pl-6"
+                            >
+                                <div className="text-right hidden sm:block">
+                                    <p className="text-[11px] font-black text-blue-900 uppercase tracking-tight">Master Admin</p>
+                                    <p className="text-[8px] font-black text-blue-400 uppercase tracking-widest mt-1">Root Authority</p>
+                                </div>
+                                <Avatar className="h-12 w-12 skeuo-button border-white p-0.5 shadow-skeuo-md cursor-pointer relative group/avatar">
+                                    <AvatarImage src="https://github.com/shadcn.png" className="rounded-xl overflow-hidden" />
+                                    <AvatarFallback className="bg-blue-50 text-blue-900 font-bold">AD</AvatarFallback>
+                                    <div className="absolute inset-0 bg-blue-600/10 opacity-0 group-hover/avatar:opacity-100 rounded-xl transition-opacity"></div>
+                                </Avatar>
+                            </motion.div>
                         </div>
                     </div>
                 </header>
 
-                {/* Page Content */}
-                <main className="flex-1 overflow-auto p-8 scroll-smooth">
+                {/* Command Deck Content */}
+                <main className="flex-1 overflow-auto p-8 pt-6 relative no-scrollbar">
+                    <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-[#F5F9FF] to-transparent pointer-events-none z-10"></div>
+
                     <motion.div
                         key={location.pathname}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="w-full max-w-7xl mx-auto pb-10"
+                        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                        className="w-full max-w-7xl mx-auto pb-20 relative z-0"
                     >
                         <Outlet />
                     </motion.div>
